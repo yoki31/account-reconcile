@@ -771,20 +771,32 @@ class AccountReconciliation(models.AbstractModel):
         domain_reconciliation = [
             "&",
             "&",
-            "&",
             ("statement_line_id", "=", False),
             ("account_id", "in", aml_accounts),
-            ("payment_id", "<>", False),
             ("balance", "!=", 0.0),
         ]
-
+        if st_line.company_id.account_bank_reconciliation_start:
+            domain_reconciliation = expression.AND(
+                [
+                    domain_reconciliation,
+                    [
+                        (
+                            "date",
+                            ">=",
+                            st_line.company_id.account_bank_reconciliation_start,
+                        )
+                    ],
+                ]
+            )
         # default domain matching
         domain_matching = [
+            "&",
             "&",
             "&",
             ("reconciled", "=", False),
             ("account_id.reconcile", "=", True),
             ("balance", "!=", 0.0),
+            ("parent_state", "=", "posted"),
         ]
 
         domain = expression.OR([domain_reconciliation, domain_matching])
@@ -830,27 +842,13 @@ class AccountReconciliation(models.AbstractModel):
         # filter on account.move.line having the same company as the statement
         # line
         domain = expression.AND([domain, [("company_id", "=", st_line.company_id.id)]])
-
-        if st_line.company_id.account_bank_reconciliation_start:
-            domain = expression.AND(
-                [
-                    domain,
-                    [
-                        (
-                            "date",
-                            ">=",
-                            st_line.company_id.account_bank_reconciliation_start,
-                        )
-                    ],
-                ]
-            )
         return domain
 
     @api.model
     def _domain_move_lines_for_manual_reconciliation(
         self, account_id, partner_id=False, excluded_ids=None, search_str=False
     ):
-        """ Create domain criteria that are relevant to manual reconciliation. """
+        """Create domain criteria that are relevant to manual reconciliation."""
         domain = [
             "&",
             "&",
@@ -1076,7 +1074,7 @@ class AccountReconciliation(models.AbstractModel):
 
     @api.model
     def _get_move_line_reconciliation_proposition(self, account_id, partner_id=None):
-        """ Returns two lines whose amount are opposite """
+        """Returns two lines whose amount are opposite"""
 
         Account_move_line = self.env["account.move.line"]
 
